@@ -68,8 +68,10 @@ The first transcription downloads the Whisper model (`WHISPER_MODEL=small` by de
 ```bash
 docker compose up --build
 ```
-Brings up PostgreSQL, Redis, MinIO (S3-compatible, bucket auto-created), the API, a worker, beat
-and the frontend. Previews/exports are stored in MinIO and served via `S3_PUBLIC_BASE_URL`.
+Brings up PostgreSQL, Redis, the API, a worker, beat and the frontend. Previews and exports are
+kept on a Docker volume and served by the API. To use S3-compatible storage instead, start the
+optional MinIO services with `docker compose --profile s3 up --build` and switch the commented
+`STORAGE_BACKEND: s3` lines in `docker-compose.yml` (images come from quay.io).
 
 ## API
 
