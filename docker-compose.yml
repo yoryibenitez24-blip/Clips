@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: clips
+      POSTGRES_PASSWORD: clips
+      POSTGRES_DB: clips
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U clips"], interval: 5s, timeout: 3s, retries: 20 }
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment: { MINIO_ROOT_USER: minioadmin, MINIO_ROOT_PASSWORD: minioadmin }
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [minio:/data]
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on: [minio]
+    entrypoint: >
+      /bin/sh -c "until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done;
+      mc mb -p local/clips || true"
+
+  api:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://clips:clips@postgres:5432/clips
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_BACKEND: s3
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_PUBLIC_BASE_URL: http://localhost:9000/clips
+      WORK_DIR: /data/work
+      UPLOAD_DIR: /data/uploads
+      WHISPER_CACHE_DIR: /data/models
+    volumes: [workdata:/data]
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+      minio-init: { condition: service_completed_successfully }
+
+  worker:
+    build: ./backend
+    command: celery -A app.workers.celery_app:celery_app worker -Q analysis,render -c 2 --loglevel=INFO
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://clips:clips@postgres:5432/clips
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_BACKEND: s3
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_PUBLIC_BASE_URL: http://localhost:9000/clips
+      WORK_DIR: /data/work
+      UPLOAD_DIR: /data/uploads
+      WHISPER_CACHE_DIR: /data/models
+    volumes: [workdata:/data]
+    depends_on: [api]
+
+  beat:
+    build: ./backend
+    command: celery -A app.workers.celery_app:celery_app beat --loglevel=INFO
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://clips:clips@postgres:5432/clips
+      REDIS_URL: redis://redis:6379/0
+    depends_on: [redis]
+
+  frontend:
+    build:
+      context: ./frontend
+      args: { NEXT_PUBLIC_API_URL: http://localhost:8000 }
+    ports: ["3000:3000"]
+    depends_on: [api]
+
+volumes:
+  pgdata:
+  minio:
+  workdata:
