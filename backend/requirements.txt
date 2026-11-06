@@ -1,0 +1,17 @@
+fastapi[standard]>=0.115
+uvicorn[standard]>=0.30
+sqlalchemy>=2.0
+psycopg[binary]>=3.1
+celery>=5.4
+redis>=5.0
+boto3>=1.34
+pydantic-settings>=2.3
+httpx>=0.27
+numpy>=1.26
+opencv-python-headless==4.11.0.86
+scenedetect>=0.6.4
+faster-whisper>=1.0
+yt-dlp>=2025.1.1
+python-multipart>=0.0.9
+anthropic>=0.60
+pytest>=8.0
