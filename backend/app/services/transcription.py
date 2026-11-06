@@ -45,14 +45,32 @@ def _load_model():
         return model
 
 
+def load_pcm16k(audio_path: Path):
+    """Read the 16 kHz mono PCM analysis track as float32 samples.
+
+    We decode with the standard library instead of faster-whisper's PyAV-based decoder, which
+    breaks on newer PyAV releases (`open() got an unexpected keyword argument 'metadata_errors'`).
+    """
+    import wave
+
+    import numpy as np
+
+    with wave.open(str(audio_path), "rb") as wf:
+        if wf.getnchannels() != 1 or wf.getframerate() != 16000 or wf.getsampwidth() != 2:
+            raise ProcessingFailed("Analysis audio must be 16 kHz mono 16-bit PCM")
+        raw = wf.readframes(wf.getnframes())
+    return np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+
+
 def transcribe(audio_path: Path, language: str | None = None, progress=None) -> dict:
     """Return {language, segments:[{start,end,text,words:[{start,end,text,prob}]}], text}."""
     s = get_settings()
     model = _load_model()
     lang = None if (language in (None, "auto")) else language
+    samples = load_pcm16k(audio_path)
     try:
         segments_iter, info = model.transcribe(
-            str(audio_path),
+            samples,
             language=lang,
             beam_size=5,
             word_timestamps=True,
