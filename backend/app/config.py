@@ -59,7 +59,9 @@ class Settings(BaseSettings):
     youtube_allowed_channel_ids: str = ""  # optional comma list restricting retrieval to given channels
     youtube_api_key: str | None = None  # YouTube Data API v3 key (metadata only)
     ytdlp_cookies_file: Path | None = None
-    ytdlp_format: str = "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best"
+    # prefer H.264 (avc1) so OpenCV/PySceneDetect decode it natively; AV1/VP9 still work via PyAV + ffmpeg
+    ytdlp_format: str = ("bestvideo[height<=1080][vcodec^=avc1]+bestaudio[ext=m4a]/"
+                         "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best")
     direct_url_ingest_enabled: bool = True
     upload_ingest_enabled: bool = True
     local_file_ingest_enabled: bool = False

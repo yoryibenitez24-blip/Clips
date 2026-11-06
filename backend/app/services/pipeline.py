@@ -203,7 +203,7 @@ def _run_analysis(db, job: Job, project: Project, tracker: JobTracker) -> None:
     skey = f"scenes:{fp}:{s.scene_threshold}"
     scenes = cache_get(db, skey)
     if not scenes:
-        scenes = scene_svc.detect_scenes(source, minfo.duration, minfo.fps,
+        scenes = scene_svc.detect_scenes(source, minfo.duration, minfo.fps, codec=minfo.video_codec,
                                          progress=lambda f: tracker.progress(f * 0.5, "Detecting scene changes"))
         cache_set(db, skey, "scenes", scenes)
     audio = None
@@ -220,6 +220,8 @@ def _run_analysis(db, job: Job, project: Project, tracker: JobTracker) -> None:
         vision = vision_svc.analyze_frames(source, minfo.width, minfo.height, minfo.duration,
                                            progress=lambda f: tracker.progress(0.55 + f * 0.45, "Sampling frames"))
         cache_set(db, vkey, "vision", vision)
+    if vision.get("face_detection") is False:
+        tracker.warn("Face detection is unavailable in this OpenCV build; auto-reframe uses motion only.")
     project.analysis = {
         "scene_count": len(scenes.get("scenes", [])), "cuts": scenes.get("cuts", [])[:500],
         "audio_peaks": len((audio or {}).get("peaks", [])), "silences": len((audio or {}).get("silences", [])),

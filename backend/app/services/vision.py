@@ -24,13 +24,19 @@ _cascade = None
 
 
 def _face_cascade():
+    """Haar face detector, or None when this OpenCV build has no cascade support (faces are then skipped)."""
     global _cascade
     if _cascade is None:
-        path = os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
-        _cascade = cv2.CascadeClassifier(path)
-        if _cascade.empty():  # pragma: no cover
-            raise ProcessingFailed("OpenCV face cascade could not be loaded")
-    return _cascade
+        try:
+            path = os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
+            cascade = cv2.CascadeClassifier(path)
+            _cascade = None if cascade.empty() else cascade
+        except AttributeError:
+            _cascade = None
+        if _cascade is None:
+            log.warning("OpenCV %s has no usable face cascade; face/facecam detection disabled", cv2.__version__)
+            _cascade = False
+    return _cascade or None
 
 
 def analyze_frames(video_path: Path, width: int, height: int, duration: float, progress=None,
@@ -81,7 +87,8 @@ def analyze_frames(video_path: Path, width: int, height: int, duration: float, p
                     cx.append(0.5)
                     cy.append(0.5)
             prev = frame
-            detected = cascade.detectMultiScale(frame, scaleFactor=1.15, minNeighbors=5, minSize=(18, 18))
+            detected = cascade.detectMultiScale(frame, scaleFactor=1.15, minNeighbors=5, minSize=(18, 18)) \
+                if cascade is not None else []
             boxes = []
             for (fx, fy, fw, fh) in (detected if len(detected) else []):
                 boxes.append([round(fx / w, 3), round(fy / h, 3), round(fw / w, 3), round(fh / h, 3)])
@@ -106,6 +113,7 @@ def analyze_frames(video_path: Path, width: int, height: int, duration: float, p
         "faces": faces,
         "brightness": brightness,
         "facecam": detect_facecam(faces),
+        "face_detection": cascade is not None,
     }
 
 
