@@ -32,6 +32,7 @@ services:
 
   api:
     build: ./backend
+    image: clips-backend:local
     env_file: [{ path: .env, required: false }]
     environment:
       DATABASE_URL: postgresql+psycopg://clips:clips@postgres:5432/clips
@@ -51,7 +52,7 @@ services:
       redis: { condition: service_started }
 
   worker:
-    build: ./backend
+    image: clips-backend:local   # built once by the api service
     command: celery -A app.workers.celery_app:celery_app worker -Q analysis,render -c 2 --loglevel=INFO
     env_file: [{ path: .env, required: false }]
     environment:
@@ -69,7 +70,7 @@ services:
     depends_on: [api]
 
   beat:
-    build: ./backend
+    image: clips-backend:local
     command: celery -A app.workers.celery_app:celery_app beat --loglevel=INFO
     env_file: [{ path: .env, required: false }]
     environment:
@@ -81,6 +82,7 @@ services:
     build:
       context: ./frontend
       args: { NEXT_PUBLIC_API_URL: http://localhost:8000 }
+    image: clips-frontend:local
     ports: ["3000:3000"]
     depends_on: [api]
 
