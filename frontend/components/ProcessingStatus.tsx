@@ -14,12 +14,13 @@ export function ProcessingStatus({ job }: { job: Job }) {
   const history = new Map(job.stage_history.map((h) => [h.stage, h]));
   const currentIdx = ANALYZE_STAGES.findIndex(([k]) => k === job.stage);
   const failed = job.status === "failed";
+  const retrying = job.status === "queued" && job.attempts > 0 && !!job.error;
   return (
     <div className="card p-6">
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <div className="text-sm text-ink-400">{failed ? "Processing failed" : job.status === "completed" ? "Done" : "Processing"}</div>
-          <div className="text-lg font-semibold">{failed ? (job.stage_label || "Error") : (job.stage_label || "Queued")}</div>
+          <div className="text-sm text-ink-400">{failed ? "Processing failed" : retrying ? "Retrying" : job.status === "completed" ? "Done" : "Processing"}</div>
+          <div className="text-lg font-semibold">{failed ? (job.stage_label || "Error") : retrying ? `Attempt ${job.attempts + 1} starting shortly` : (job.stage_label || "Queued")}</div>
         </div>
         <div className="text-2xl font-semibold tabular-nums text-accent-300">{Math.round(job.progress)}%</div>
       </div>
@@ -51,6 +52,7 @@ export function ProcessingStatus({ job }: { job: Job }) {
         </ul>
       )}
       {failed && job.error && <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{job.error}</div>}
+      {retrying && <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/10 p-3 text-sm text-amber-200">{job.error}</div>}
       <p className="mt-4 text-xs text-ink-400">Processing continues on the server. You can leave this page and come back from <span className="text-ink-300">Projects</span>.</p>
     </div>
   );

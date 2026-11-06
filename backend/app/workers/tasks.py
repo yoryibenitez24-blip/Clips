@@ -21,12 +21,18 @@ def _should_retry(job_id: str) -> bool:
         return bool(job and job.attempts <= get_settings().job_max_retries)
 
 
-def _requeue(job_id: str) -> None:
+def _requeue(job_id: str, reason: str) -> None:
+    """Put a crashed job back in the queue and tell the UI a retry is coming."""
+    from app.models import Project
+
     with SessionLocal() as db:
         job = db.get(Job, job_id)
         if job:
             job.status = "queued"
-            job.error = None
+            job.error = f"Attempt {job.attempts} failed ({reason[:200]}). Retrying automatically…"
+            project = db.get(Project, job.project_id)
+            if project and job.kind == "analyze":
+                project.status = "queued"
             db.commit()
 
 
@@ -37,13 +43,14 @@ def analyze_video_task(self, job_id: str) -> None:
     except RetrievalFailed as exc:
         # transient network problems while retrieving media are retried with backoff
         if _should_retry(job_id):
-            _requeue(job_id)
+            _requeue(job_id, str(exc))
             raise self.retry(exc=exc, countdown=min(60 * (2 ** self.request.retries), 600))
     except ClipsError:
         return  # user-facing failure already recorded on the job
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        log.exception("analysis job %s crashed", job_id)
         if _should_retry(job_id):
-            _requeue(job_id)
+            _requeue(job_id, repr(exc))
             raise self.retry(countdown=30)
 
 
@@ -53,9 +60,10 @@ def render_clip_task(self, job_id: str) -> None:
         run_render(job_id)
     except ClipsError:
         return
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        log.exception("render job %s crashed", job_id)
         if _should_retry(job_id):
-            _requeue(job_id)
+            _requeue(job_id, repr(exc))
             raise self.retry(countdown=20)
 
 
